@@ -1,0 +1,87 @@
+#Select ssns of all suspects who have status arrested
+SELECT DISTINCT S.ssn, P.name, S.soName
+FROM Status_HasStatus_HasOption S, Person P
+WHERE S.soName = 'Arrested' AND S.ssn = P.ssn
+
+
+#Select names of all officers who worked on a report in 2014
+SELECT DISTINCT P.name
+FROM Person P, Officer_EmployedBy O, WorksOn W, Report_ReportsOn_Files R
+WHERE P.ssn = O.ssn
+AND O.badgeNum = W.badgeNum
+AND W.reportNum = R.reportNum
+AND R.cDatetime LIKE '%2014%'
+
+
+#Select ranks of all officers who have worked on at least 10 reports, grouping by cName of report
+SELECT DISTINCT O.rank
+FROM Officer_EmployedBy O, Report_ReportsOn_Files R, WorksOn W
+WHERE O.badgeNum = W.badgeNum AND W.reportNum = R.reportNum
+GROUP BY R.cName
+HAVING COUNT(DISTINCT R.reportNum) >= 10
+
+
+# Select name of precincts with at least 5 investigations associated with them
+SELECT DISTINCT P.pName
+FROM Precinct P, Officer_EmployedBy O, WorksOn W, Report_ReportsOn_Files R, Investigation_RelatesTo I, Suspect_IsOn S
+WHERE P.pName = O.pName AND O.badgeNum = W.badgeNum AND W.reportNum = R.reportNum AND R.reportNum = I.reportNum
+GROUP BY P.pName
+HAVING COUNT(DISTINCT I.iNumber) >= 5
+
+
+#Select reports where it shares both clerk and crime type with at least one other report
+SELECT DISTINCT reportNum
+FROM Report_ReportsOn_Files AS R
+WHERE reportNum IN (
+	SELECT reportNum
+	FROM Report_ReportsOn_Files
+	WHERE cName = R.cName AND clerkSsn = R.clerkSsn AND reportNum <> R.reportNum)
+
+
+#multiply all reportNums by 10 (update query) or query to insert some tuple
+UPDATE reportReportOnFiles
+SET reportNum = reportNum * 10;
+
+
+#Select iNumber of investigation(s) for which number of suspects being investigated for it is minimum
+CREATE VIEW numberPerInvestigation AS
+SELECT S.iNumber, COUNT(S.ssn) AS ssnCount
+	FROM Suspect_IsOn S
+GROUP BY S.iNumber
+
+
+SELECT N1.iNumber
+FROM numberPerInvestigation N1
+WHERE N1.ssnCount = (
+	SELECT MIN(N2.ssnCount)
+	FROM numberPerInvestigation N2)
+	
+	
+# Select names of all clerks who have never filed report for investigation with suspect under investigation
+SELECT DISTINCT P.name
+FROM Person P, Clerk C, Investigation_RelatesTo I, Suspect_IsOn S, Report_ReportsOn_Files R, Status_HasStatus_HasOption O
+WHERE P.ssn = C.ssn
+AND C.ssn = R.clerkSsn
+AND R.reportNum = I.reportNum
+AND I.iNumber = S.iNumber
+AND S.ssn = O.ssn
+AND P.name <> ANY (
+SELECT P.name
+FROM Person P, Clerk C, Investigation_RelatesTo I, Suspect_IsOn S, 
+Report_ReportsOn_Files R, Status_HasStatus_HasOption O
+WHERE P.ssn = C.ssn
+AND C.ssn = R.clerkSsn
+AND R.reportNum = I.reportNum
+AND I.iNumber = S.iNumber
+AND S.ssn = O.ssn
+AND O.soName = 'Under Investigation');
+
+
+#Select name, status, date for each suspect order by date
+SELECT P.name, S.soName, S.date
+FROM Person P, Status_HasStatus_HasOption S
+WHERE P.ssn = S.ssn
+GROUP BY P.ssn
+ORDER BY S.date
+
+
